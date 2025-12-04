@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { 
   BudgetTemplate, 
   BudgetPeriod, 
@@ -8,6 +8,7 @@ import {
   BudgetPeriodFilter
 } from '../../types'
 import { budgetsService } from '../../services/budgetsService'
+import { getApiErrorMessage } from '../../utils/errorUtils'
 
 interface BudgetsState {
   templates: BudgetTemplate[]
@@ -33,16 +34,26 @@ const initialState: BudgetsState = {
   summaryLoading: false,
   operationLoading: false
 }
-
 // Async Thunks
 
 export const fetchTemplates = createAsyncThunk(
   'budgets/fetchTemplates',
-  async (_, { rejectWithValue }) => {
+  async (params: { sortBy?: string; sortOrder?: 'asc' | 'desc' } | undefined, { rejectWithValue }) => {
     try {
-      return await budgetsService.getTemplates()
+      return await budgetsService.getTemplates(params)
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch budget templates')
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to fetch budget templates'))
+    }
+  }
+)
+
+export const fetchPeriods = createAsyncThunk(
+  'budgets/fetchPeriods',
+  async (filter: BudgetPeriodFilter, { rejectWithValue }) => {
+    try {
+      return await budgetsService.getPeriods(filter)
+    } catch (error: any) {
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to fetch budget periods'))
     }
   }
 )
@@ -53,7 +64,7 @@ export const createTemplate = createAsyncThunk(
     try {
       return await budgetsService.createTemplate(data)
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create budget template')
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to create budget template'))
     }
   }
 )
@@ -64,7 +75,7 @@ export const updateTemplate = createAsyncThunk(
     try {
       return await budgetsService.updateTemplate(id, data)
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update budget template')
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to update budget template'))
     }
   }
 )
@@ -76,18 +87,7 @@ export const deleteTemplate = createAsyncThunk(
       await budgetsService.deleteTemplate(id)
       return id
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete budget template')
-    }
-  }
-)
-
-export const fetchPeriods = createAsyncThunk(
-  'budgets/fetchPeriods',
-  async (filter: BudgetPeriodFilter, { rejectWithValue }) => {
-    try {
-      return await budgetsService.getPeriods(filter)
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch budget periods')
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to delete budget template'))
     }
   }
 )
@@ -98,7 +98,7 @@ export const fetchCurrentMonthSummary = createAsyncThunk(
     try {
       return await budgetsService.getCurrentSummary()
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch budget summary')
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to fetch budget summary'))
     }
   }
 )
@@ -109,7 +109,7 @@ export const generatePeriods = createAsyncThunk(
     try {
       return await budgetsService.generatePeriods(month)
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to generate budget periods')
+      return rejectWithValue(getApiErrorMessage(error, 'Failed to generate budget periods'))
     }
   }
 )
@@ -223,22 +223,8 @@ const budgetsSlice = createSlice({
         state.periodsLoading = true
         state.error = null
       })
-      .addCase(generatePeriods.fulfilled, (state, action) => {
+      .addCase(generatePeriods.fulfilled, (state) => {
         state.periodsLoading = false
-        // We might want to merge these or replace depending on the use case
-        // For now, let's assume we refetch periods after generation usually, 
-        // but updating state here is also good.
-        // Since generation returns all periods for that month (if we implemented it that way),
-        // or just the new ones. The service returns `BudgetPeriod[]`.
-        // Let's assume it returns the list of generated periods.
-        // A safer bet is to just trigger a refetch or let the component handle it.
-        // But updating state is reactive.
-        // If the current view is the same month, we should add them.
-        // However, usually we just set them if the filter matches.
-        // For simplicity, let's just append for now or do nothing and rely on refetch.
-        // Actually, let's just leave it to the component to refetch to be safe, 
-        // OR update if we are sure.
-        // Let's just update loading state.
       })
       .addCase(generatePeriods.rejected, (state, action) => {
         state.periodsLoading = false
